@@ -1,34 +1,43 @@
 const { response } = require("express");
+
 const bcrypt = require("bcryptjs");
 
 const Usuario = require("../models/usuario");
+const { body } = require("express-validator");
 
-const usuariosGet = (req, res = response) => {
-  const params = req.query;
+const usuariosGet = async (req, res = response) => {
+  const { limite = 5, desde = 0 } = req.query;
+  const query = { estado: true };
+
+  const [total, usuarios] = await Promise.all([
+    Usuario.countDocuments(query),
+    Usuario.find(query).skip(Number(desde)).limit(Number(limite)),
+  ]);
 
   res.json({
-    msg: "get Api - Controlador",
-    params,
+    total,
+    usuarios,
   });
 };
-const usuariosPut = (req, res = response) => {
+const usuariosPut = async (req, res = response) => {
   const { id } = req.params;
+  const { _id, password, google, correo, ...resto } = req.body;
 
-  res.json({
-    msg: "put Api - Controlador",
-    id,
-  });
+  //TODO validar contra base de datos
+  if (password) {
+    //encriptar contrasenia
+    const salt = bcrypt.genSaltSync();
+    resto.password = bcrypt.hashSync(password, salt);
+  }
+
+  const usuario = await Usuario.findByIdAndUpdate(id, resto);
+
+  res.json(usuario);
 };
 
 const usuariosPost = async (req, res) => {
   const { nombre, correo, password, rol } = req.body;
   const usuario = new Usuario({ nombre, correo, password, rol });
-
-  //verificar si el correo existe
-  const existeCorreo = await Usuario.findOne({ correo });
-  if (existeCorreo) {
-    return res.status(400).json({ msg: "El correo ya esta registrado" });
-  }
 
   //encriptar contrasenia
   const salt = bcrypt.genSaltSync();
@@ -42,9 +51,16 @@ const usuariosPost = async (req, res) => {
     usuario,
   });
 };
-const usuariosDelete = (req, res) => {
+const usuariosDelete = async (req, res) => {
+  const { id } = req.params;
+
+  //fisicamente lo borramos
+  // const usuario = await Usuario.findByIdAndDelete(id);
+
+  const usuario = await Usuario.findByIdAndUpdate(id, { estado: false });
   res.json({
-    msg: "delete Api - Controlador",
+    id,
+    usuario,
   });
 };
 const usuariosPatch = (req, res) => {
